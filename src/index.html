@@ -4,8 +4,40 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>fuzzy_woobly_grassy_thingy</title>
+    <style>
+      #button {
+        position: fixed;
+        bottom: 16px;
+        right: 16px;
+        padding: 12px;
+        border-radius: 50%;
+        margin-bottom: 0px;
+        background-color: #fff;
+        opacity: 0.9;
+        z-index: 999;
+        box-shadow: 0 0 4px rgba(0, 0, 0, 0.15);
+      }
+
+      #repo_image {
+        width: 25px;
+        height: 25px;
+      }
+
+      a {
+        text-decoration: none;
+      }
+    </style>
   </head>
   <body>
     <canvas class="webgl"></canvas>
+    <a
+      id="button"
+      target="_blank"
+      href="https://github.com/mtXar/modified_grass_shaders"
+      title="View source code for animation / keyframes on GitHub"
+      style=""
+    >
+      <img id="repo_image" src="../static/repo.png" />
+    </a>
   </body>
 </html>
