@@ -96,7 +96,7 @@ gltfLoader.setDRACOLoader(dracoLoader);
 let modelLoaded = false;
 
 let globalParams = {
-  modelTypeIndex: 2,
+  modelTypeIndex: 0,
 };
 
 let modelFiles = [
