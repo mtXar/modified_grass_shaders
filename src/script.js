@@ -12,7 +12,7 @@ import grassFragment from "./shaders/grass_shaders/grassFragment.glsl";
 import grassVertex from "./shaders/grass_shaders/grassVertex.glsl";
 //#endregion
 
-//#region initial setup
+//#region setup
 /**
  * Base
  */
@@ -93,41 +93,52 @@ gltfLoader.setDRACOLoader(dracoLoader);
 //#endregion
 
 //#region global parameters
-let modelLoaded = false;
+
+const MESH_NAME = "down_terrain_grass_color3dd26e"; // the name of model we want to shade
+
+let modelLoaded = false; //this is used to make sure the model is loaded beore performing any operation
 
 let globalParams = {
-  modelTypeIndex: 0,
+  modelTypeIndex: 0, //this is intended to enable to see the effec of the shader on the original/unwraped/smart unwrapped meshes
 };
 
+// these are the original/unwrapped/smart unwrapped models | use either unwrapped/smart unwrapped model to see the shaders in action
 let modelFiles = [
   "/models/worldkart2_level123_v64_smart_unwrapped/worldkart2_level123_v64_smart_unwrappedgltf.gltf",
   "/models/worldkart2_level123_v64_unwrapped/worldkart2_level123_v64_unwrappedgltf.gltf",
   "/models/worldkart2_level123_v64/worldkart2_level123_v64.gltf",
 ];
 
+//parameters related to grass texture
 let grassTexParams = {
   toggleTex: false,
   texRepeat: 200,
 };
 
+//parameters related to grass shaders
 let grasShaderParams = {
   zoomFactor: 10,
   spaceScale: 10,
-  heightThreshold: 0.85,
+  heightThreshold: 0.5555,
   shaderType: 1,
   grassNormalSuppressionFactor: 2.25,
   hillNormalSuppressionFactor: 1.5,
 
-  noiseColor: "#00f",
+  globalUvScaleFactor: 0.05,
 
   colors: {
     grassColor: "#0d9b12",
     hillColor: "#f3c409",
   },
-
+  //specific parameters related to the specific shader patterns
   marbleNoise: { marbleScaleFactor: 2.75 },
   turbulenceNoise: { turbulenceScaleFactor: 2.1 },
-  halfTonIsh: { halfToneScaleFactor: 2.1 },
+  halfTonIsh: {
+    halfToneScaleFactor: 2.1,
+    halfToneFrequency: 50,
+    halfToneRadius: 0.3125,
+    halfToneRotation: 45,
+  },
   iqNoise: { iqNoiseScaleFactor: 2.1 },
   gridPattern: { gridScaleFactor: 2.1 },
   simplexNoise: { simplexScaleFactor: 2.1 },
@@ -135,7 +146,8 @@ let grasShaderParams = {
 
 //#endregion
 
-const loadMeSomeModel = (modelIndex) => {
+//function to load the given gltf model based on the index f the array above
+const loadModel = (modelIndex) => {
   if (modelIndex >= 0 && modelIndex < modelFiles.length) {
     gltfLoader.load(
       modelFiles[modelIndex],
@@ -145,7 +157,7 @@ const loadMeSomeModel = (modelIndex) => {
 
         modelLoaded = true;
 
-        texOrShader(gltf.scene, grassTexParams.toggleTex, modelLoaded);
+        renderGrassMaterial();
       },
       (progress) => {
         console.log((progress.loaded / progress.total) * 100 + "% loaded");
@@ -155,23 +167,27 @@ const loadMeSomeModel = (modelIndex) => {
       }
     );
   } else {
+    // just making sure an incorrect index will not cause issues
     alert(
       "model index is out of range \n I'll load you the first model I have by default"
     );
     globalParams.modelTypeIndex = 0;
-    loadMeSomeModel(globalParams.modelTypeIndex);
+    loadModel(globalParams.modelTypeIndex);
   }
 };
 
-loadMeSomeModel(globalParams.modelTypeIndex);
+loadModel(globalParams.modelTypeIndex);
 
+//the material that will be applied on the mesh of interest
 let grassModifiedShaderMaterial;
 
-const texOrShader = (model, toggle, modelLoaded) => {
+//function to render/rerennder the grass mesh's material whenever something changes
+const renderGrassMaterial = () => {
   if (modelLoaded) {
-    const grassMesh = model.children[0].children[14];
+    const grassMesh = scene.getObjectByName(MESH_NAME);
+    console.log(grassMesh);
 
-    if (toggle) {
+    if (grassTexParams.toggleTex) {
       const tx = new THREE.TextureLoader().load("/gr4.jpg");
       tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
       tx.repeat.set(grassTexParams.texRepeat, grassTexParams.texRepeat);
@@ -179,10 +195,17 @@ const texOrShader = (model, toggle, modelLoaded) => {
       const grassMaterial = new THREE.MeshStandardMaterial({ map: tx });
       grassMesh.material = grassMaterial;
     } else {
+      grassMesh.geometry.computeBoundingBox();
+      let meshHigh = grassMesh.geometry.boundingBox.max.y;
+      let meshLow = grassMesh.geometry.boundingBox.min.y;
+      // console.log("The mesh peak is  :" + meshPeak);
       grassModifiedShaderMaterial = new THREE.ShaderMaterial({
         vertexShader: grassVertex,
         fragmentShader: grassFragment,
+        // wireframe: true,
         uniforms: {
+          u_mesh_peak: { value: meshHigh },
+          u_mesh_low: { value: meshLow },
           u_resolution: {
             value: {
               x: renderer.domElement.width,
@@ -191,11 +214,7 @@ const texOrShader = (model, toggle, modelLoaded) => {
           },
           u_height_threshold: { value: grasShaderParams.heightThreshold },
           u_shader_type: { value: grasShaderParams.shaderType },
-          u_uv_zoom_factor: { value: grasShaderParams.zoomFactor },
-          u_space_scale_factor: { value: grasShaderParams.spaceScale },
-          u_noise_color: {
-            value: new THREE.Color(grasShaderParams.noiseColor),
-          },
+
           u_grass_color: {
             value: new THREE.Color(grasShaderParams.colors.grassColor),
           },
@@ -209,6 +228,10 @@ const texOrShader = (model, toggle, modelLoaded) => {
             value: grasShaderParams.hillNormalSuppressionFactor,
           },
 
+          u_global_uv_scale_factor: {
+            value: grasShaderParams.globalUvScaleFactor,
+          },
+
           u_marble_st_scale_factor: {
             value: grasShaderParams.marbleNoise.marbleScaleFactor,
           },
@@ -219,6 +242,16 @@ const texOrShader = (model, toggle, modelLoaded) => {
           u_halftone_st_scale_factor: {
             value: grasShaderParams.halfTonIsh.halfToneScaleFactor,
           },
+          u_halftone_frequency: {
+            value: grasShaderParams.halfTonIsh.halfToneFrequency,
+          },
+          u_halftone_circle_radius: {
+            value: grasShaderParams.halfTonIsh.halfToneRadius,
+          },
+          u_halftone_rotation_factor: {
+            value: grasShaderParams.halfTonIsh.halfToneRotation,
+          },
+
           u_iqnoise_st_scale_factor: {
             value: grasShaderParams.iqNoise.iqNoiseScaleFactor,
           },
@@ -313,7 +346,7 @@ function onGUIChange() {
   A small utility function to make the dat.gui UI more flexible and prevent it from
   filling the screen vertically
 */
-const updateUI = (index) => {
+const updateUI = (shaderTypeFolderIndex) => {
   if (grassTexParams.toggleTex) {
     grShader.hide();
     grTexture.show();
@@ -328,9 +361,9 @@ const updateUI = (index) => {
     folder.close();
     folder.hide();
   });
-  index--;
-  shaderTypeArray[index].show();
-  shaderTypeArray[index].open();
+  shaderTypeFolderIndex--; //offset the index by one to access the right folder from the array
+  shaderTypeArray[shaderTypeFolderIndex].show();
+  shaderTypeArray[shaderTypeFolderIndex].open();
 };
 
 /* 
@@ -348,7 +381,7 @@ const updateUI = (index) => {
   })
   .onChange(() => {
     loadMeSomeModel(globalParams.modelTypeIndex);
-    texOrShader(scene.children[4], grassTexParams.toggleTex, modelLoaded);
+    texOrShader();
   });
   
 */
@@ -358,7 +391,7 @@ const updateUI = (index) => {
 */
 let texorshader = gui.addFolder("Texture or shader");
 texorshader.add(grassTexParams, "toggleTex").onChange(() => {
-  texOrShader(scene.children[4], grassTexParams.toggleTex, modelLoaded);
+  renderGrassMaterial();
 
   updateUI(grasShaderParams.shaderType);
 });
@@ -369,7 +402,7 @@ texorshader.open();
 */
 let grTexture = gui.addFolder("Texture params");
 grTexture.add(grassTexParams, "texRepeat", 25, 320).onChange(() => {
-  texOrShader(scene.children[4], grassTexParams.toggleTex, modelLoaded);
+  renderGrassMaterial();
 });
 
 //#region grass shader params and controls
@@ -379,12 +412,17 @@ grTexture.add(grassTexParams, "texRepeat", 25, 320).onChange(() => {
 let grShader = gui.addFolder("Shader params");
 
 let comingSoon = { message: "More controls on the way" };
+grShader
+  .add(grasShaderParams, "globalUvScaleFactor", 0, 0.1, 0.001)
+  .onChange(() => {
+    renderGrassMaterial();
+  });
 
 let marbleNoise = grShader.addFolder("Grass Marble Shader");
 marbleNoise
   .add(grasShaderParams.marbleNoise, "marbleScaleFactor", 0, 15, 0.001)
   .onChange(() => {
-    texOrShader(scene.children[4], grassTexParams.toggleTex, modelLoaded);
+    renderGrassMaterial();
   });
 marbleNoise.add(comingSoon, "message").name("Note");
 
@@ -392,37 +430,53 @@ let turbulenceNoise = grShader.addFolder("Turbulence Noise Shader");
 turbulenceNoise
   .add(grasShaderParams.turbulenceNoise, "turbulenceScaleFactor", 0, 15, 0.001)
   .onChange(() => {
-    texOrShader(scene.children[4], grassTexParams.toggleTex, modelLoaded);
+    renderGrassMaterial();
   });
 turbulenceNoise.add(comingSoon, "message").name("Note");
 
 let halfTonIsh = grShader.addFolder("Half-Tone-ish Shader");
 halfTonIsh
-  .add(grasShaderParams.halfTonIsh, "halfToneScaleFactor", 0, 15, 0.001)
+  .add(grasShaderParams.halfTonIsh, "halfToneScaleFactor", 0, 5, 0.0001)
   .onChange(() => {
-    texOrShader(scene.children[4], grassTexParams.toggleTex, modelLoaded);
+    renderGrassMaterial();
   });
-halfTonIsh.add(comingSoon, "message").name("Note");
+halfTonIsh
+  .add(grasShaderParams.halfTonIsh, "halfToneFrequency", 0, 100, 1)
+  .onChange(() => {
+    renderGrassMaterial();
+  });
+
+halfTonIsh
+  .add(grasShaderParams.halfTonIsh, "halfToneRadius", 0, 1, 0.0125)
+  .onChange(() => {
+    renderGrassMaterial();
+  });
+
+halfTonIsh
+  .add(grasShaderParams.halfTonIsh, "halfToneRotation", 0, 90, 1)
+  .onChange(() => {
+    renderGrassMaterial();
+  });
 
 let iqNoise = grShader.addFolder("iqNoise Shader");
 iqNoise
   .add(grasShaderParams.iqNoise, "iqNoiseScaleFactor", 0, 15, 0.001)
   .onChange(() => {
-    texOrShader(scene.children[4], grassTexParams.toggleTex, modelLoaded);
+    renderGrassMaterial();
   });
 
 let gridPattern = grShader.addFolder("Grid Pattern Shader");
 gridPattern
   .add(grasShaderParams.gridPattern, "gridScaleFactor", 0, 15, 0.001)
   .onChange(() => {
-    texOrShader(scene.children[4], grassTexParams.toggleTex, modelLoaded);
+    renderGrassMaterial();
   });
 
 let simplexNoise = grShader.addFolder("Simplex Noise Shader");
 simplexNoise
   .add(grasShaderParams.simplexNoise, "simplexScaleFactor", 0, 15, 0.001)
   .onChange(() => {
-    texOrShader(scene.children[4], grassTexParams.toggleTex, modelLoaded);
+    renderGrassMaterial();
   });
 
 let shaderTypeArray = [
@@ -446,7 +500,7 @@ grShader
     simplexPattern: 6,
   })
   .onChange(() => {
-    texOrShader(scene.children[4], grassTexParams.toggleTex, modelLoaded);
+    renderGrassMaterial();
     updateUI(grasShaderParams.shaderType);
   });
 
@@ -456,30 +510,31 @@ grShader
 let generalProperties = grShader.addFolder("General Shader Properties");
 let colors = generalProperties.addFolder("Colors");
 colors.addColor(grasShaderParams.colors, "grassColor").onChange(() => {
-  texOrShader(scene.children[4], grassTexParams.toggleTex, modelLoaded);
+  renderGrassMaterial();
 });
 
 colors.addColor(grasShaderParams.colors, "hillColor").onChange(() => {
-  texOrShader(scene.children[4], grassTexParams.toggleTex, modelLoaded);
+  renderGrassMaterial();
 });
 colors.open();
 
 generalProperties
-  .add(grasShaderParams, "heightThreshold", 0.8, 1, 0.00000000001)
+  .add(grasShaderParams, "heightThreshold", 0.555, 0.6, 0.00001)
   .onChange(() => {
-    texOrShader(scene.children[4], grassTexParams.toggleTex, modelLoaded);
-  });
+    renderGrassMaterial();
+  })
+  .name("Hill Slider");
 
 generalProperties
   .add(grasShaderParams, "grassNormalSuppressionFactor", 1.0, 4.0, 0.001)
   .onChange(() => {
-    texOrShader(scene.children[4], grassTexParams.toggleTex, modelLoaded);
+    renderGrassMaterial();
   });
 
 generalProperties
   .add(grasShaderParams, "hillNormalSuppressionFactor", 1.0, 4.0, 0.001)
   .onChange(() => {
-    texOrShader(scene.children[4], grassTexParams.toggleTex, modelLoaded);
+    renderGrassMaterial();
   });
 generalProperties.open();
 //#endregion
